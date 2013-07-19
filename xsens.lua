@@ -22,10 +22,7 @@ function parsesingle(buffer,offset,pinfo, tree,t)
 		length = 5 + len:uint(); 
 	end
 
-	-- Add the header tree item and populate it
 	local hdr = t:add(buffer(offset, length), string.format("PACKET MID=0x%02x LEN=%d",mid:uint(),length))
-	--  hdr:add(f.preamble, buffer(offset + 0, 1))
-	--  hdr:add(f.bid, buffer(offset + 1, 1))
 	hdr:add(f.mid, mid)
 	hdr:add(f.len, len)
 	if (len:uint() == 0xFF) then
@@ -49,28 +46,29 @@ function xsens_proto.dissector(buffer, pinfo, tree)
 	local offset = 0;
 	local count = 0;
 	local t;
-	
-	while (offset + 1) < buffer:len() do
+
+	if (buffer:len() < 5) then
+		return
+	end
+
+	if (buffer(0,2):uint() ~= 0xFAFF) then
+		return
+	end
+
+	t = tree:add(xsens_proto, buffer(offset))
+
+	repeat
 		if (buffer(offset,2):uint() == 0xFAFF) then
-			if (t == nil) then
-				pinfo.cols['protocol'] = pinfo.curr_proto
-				t = tree:add(xsens_proto, buffer(offset))
-			end
-			
 			offset = parsesingle(buffer,offset,pinfo,tree,t)
 			count = count + 1;
 		else
 			offset = offset + 1
 		end
-	end
+	until (offset + 5) >= buffer:len()
 	
-	if (count > 0) then
-		pinfo.cols['info'] = string.format("chunk of %d packets",count)
-	end
+	pinfo.cols['protocol'] = pinfo.curr_proto
+	pinfo.cols['info'] = string.format("chunk of %d packets",count)
 end
-
-
--- DissectorTable.get("usb.bulk"):add(xsens_proto)
 
 usb_devs = DissectorTable.get("usb.product")
 usb_devs:add(0x26390017,xsens_proto)
