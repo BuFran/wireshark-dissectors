@@ -19,23 +19,30 @@ function bcan_proto.dissector(buffer, pinfo, tree)
 	local offset = 0
 	
 	local mobid = buffer(offset, 4)
+	local peripheral = buffer(offset+7,1)
 	
 	local ide = band(mobid:uint(), tobit(0x80000000)) == tobit(0x80000000)
 	local rtr = band(mobid:uint(), tobit(0x40000000)) == tobit(0x40000000)
 	local err = band(mobid:uint(), tobit(0x20000000)) == tobit(0x20000000)
 	local std = rshift(band(mobid:uint(), tobit(0x1FFC0000)), 18)
 	local ext = rshift(band(mobid:uint(), tobit(0x0003FFFF)), 0)
-	
+
 	local canid = ""
-	
+
 	if ide then
 		canid = tohex(std,3).."."..tohex(ext,5)
 	else
 		canid = tohex(std,3)
 	end
-	
-	t = tree:add(bcan_proto, "CAN: ID "..canid, buffer(offset))
-	pinfo.cols['info'] = "CAN: ID ".. canid
+
+	local periph = "CAN"
+
+	if peripheral:uint() != 0 then
+		periph = "CAN"..tostring(peripheral:uint());
+	end
+
+	t = tree:add(bcan_proto, periph..": ID "..canid, buffer(offset))
+	pinfo.cols['info'] = periph..": ID ".. canid
 	
 	if not err then
 		q = t:add(f.mobid, canid, mobid)
@@ -51,10 +58,10 @@ function bcan_proto.dissector(buffer, pinfo, tree)
 	
 	if std == 0x80 then
 		t = tree:add("CanOpen: SYNC");
-		pinfo.cols['info'] = "CanOpen: SYNC"
+		pinfo.cols['info'] = periph..": CanOpen: SYNC"
 	elseif std == 0x00 then
 		t = tree:add("CanOpen: NMT");
-		pinfo.cols['info'] = "CanOpen: NMT"
+		pinfo.cols['info'] = periph..": CanOpen: NMT"
 	end
 
 	pinfo.cols['protocol'] = pinfo.curr_proto
